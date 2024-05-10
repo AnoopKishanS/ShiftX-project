@@ -6,15 +6,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class ShiftService {
-	public void processShiftPattern(String shiftPattern) throws ServiceException {
+	public Map<Integer, DayInfoVO> processShiftPattern(String shiftPattern) throws ServiceException {
 
 		String[] dayWisePattern = shiftPattern.split(",");
 		// 0900-1730-B30
@@ -24,57 +20,64 @@ public class ShiftService {
 				daysMap.put(i + 1, processDayPattern(dayWisePattern[i]));
 			}
 		}
-			
-		String shiftType=findShiftType(daysMap);
-		boolean minutesBetweenEachShift=isValidShift(daysMap);
-		System.out.println(minutesBetweenEachShift);
+
+		String shiftType = findShiftType(daysMap);
+		boolean minutesBetweenEachShift = isValidShift(daysMap);
+		return daysMap;
 	}
 
-	public String findShiftType(Map<Integer,DayInfoVO> daysMap) {
+	public String findShiftType(Map<Integer, DayInfoVO> daysMap) {
 		String shiftType;
-		String startEndTime="";
-		boolean allEqual=true;
-		
-		for(DayInfoVO shiftTime: daysMap.values()) {
+		String shiftStartEnd = "";
+		boolean allEqual = true;
+
+		for (DayInfoVO shiftTime : daysMap.values()) {
 			String shiftStartEndTime = shiftTime.getStartTime() + "to" + shiftTime.getEndTime();
-			 
-			 if(startEndTime.equals("")) {
-				 startEndTime=shiftStartEndTime;
-			 }
-			 else if(!startEndTime.equals(shiftStartEndTime)) {
-				 allEqual=false;
-				 break;
-			 }
+
+			if (shiftStartEnd.equals("")) {
+				shiftStartEnd = shiftStartEndTime;
+			} else if (!shiftStartEnd.equals(shiftStartEndTime)) {
+				allEqual = false;
+				break;
+			}
 		}
-		if(allEqual) {
-			shiftType="Regular";
-		}
-		else {
-			shiftType="Variable";
+		if (allEqual) {
+			shiftType = "Regular";
+		} else {
+			shiftType = "Variable";
 		}
 		return shiftType;
 	}
 
 	public boolean isValidShift(Map<Integer, DayInfoVO> daysMap) {
-		Duration minimumDurationBetweenShifts = Duration.ofHours(8);
-		
-		for(Integer key: daysMap.keySet()) {
-			DayInfoVO prevDayEndTime=daysMap.get(key);
-			Instant dayEndTime=prevDayEndTime.getEndTime();
-		    
-			DayInfoVO nextDayStartTime=daysMap.get(key);
-			Instant dayStartTime=nextDayStartTime.getStartTime();
+		boolean isValid = true;
+		Duration hoursBetweenNextShift;
 
-			Duration hoursBetweenNextShift=Duration.between(dayEndTime, dayStartTime);
-	
-			if(hoursBetweenNextShift.compareTo(minimumDurationBetweenShifts)<0) {
-				return true;
+		for (int i = 1; i <= 6; i++) {
+			DayInfoVO currentDay = daysMap.get(i);
+			DayInfoVO nextDay = daysMap.get(i + 1);
+
+			Instant curentDayEndTime = currentDay != null ? currentDay.getEndTime() : null;
+			Instant nextDayStartTime = nextDay != null ? nextDay.getStartTime() : null;
+
+			if (curentDayEndTime == null && nextDayStartTime == null || nextDayStartTime == null
+					|| curentDayEndTime == null) {
+				isValid = true;
+			} else {
+				hoursBetweenNextShift = Duration.between(curentDayEndTime, nextDayStartTime);
+				if (hoursBetweenNextShift.isNegative()) {
+					hoursBetweenNextShift = hoursBetweenNextShift.plus(Duration.ofHours(24));
+				}
+				if (hoursBetweenNextShift.toMinutes() < 8 * 60) {
+					isValid = false;
+					break;
+				} else {
+					isValid = true;
+				}
 			}
-		
+
 		}
-		
-		return false;
-	
+		return isValid;
 	}
 
 	public DayInfoVO processDayPattern(String pattern) throws ServiceException {
@@ -125,11 +128,13 @@ public class ShiftService {
 		return localDatetime.toInstant(ZoneOffset.UTC);
 	}
 
-	public int minutesBetween(Instant fromTime, Instant toTime) throws ServiceException {
+	public int minutesBetween(Instant fromTime, Instant toTime) {
+		Duration duration;
 		if (fromTime.compareTo(toTime) > 0) {
-			throw new ServiceException("Invalid time range: The end time cannot be less than the start time.");
+			duration = Duration.between(toTime, fromTime);
+		} else {
+			duration = Duration.between(fromTime, toTime);
 		}
-		Duration duration = Duration.between(fromTime, toTime);
 		long minutes = duration.toMinutes();
 
 		return (int) minutes;
