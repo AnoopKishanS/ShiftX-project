@@ -6,56 +6,80 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ShiftService {
-	public Map<Integer, DayInfoVO> processShiftPattern(String shiftPattern) throws ServiceException {
+	public List<DayInfoVO> processShiftPattern(String shiftPattern) throws ServiceException {
 
 		String[] dayWisePattern = shiftPattern.split(",");
 		// 0900-1730-B30
-		Map<Integer, DayInfoVO> daysMap = new HashMap<>();
+
+		Shift shift = new Shift();
+		shift.setDays(new ArrayList<DayInfoVO>());
+
+//		Map<Integer, DayInfoVO> daysMap = new HashMap<>();
+
 		for (int i = 0; i < dayWisePattern.length; i++) {
 			if (!dayWisePattern[i].equals("OFF")) {
-				daysMap.put(i + 1, processDayPattern(dayWisePattern[i]));
+//				daysMap.put(i + 1, processDayPattern(dayWisePattern[i]));
+				DayInfoVO dayInfoVO = processDayPattern(dayWisePattern[i]);
+				dayInfoVO.setDay(i + 1);
+				shift.getDays().add(dayInfoVO);
 			}
 		}
+		List<DayInfoVO> daysList = shift.getDays();
 
-		String shiftType = findShiftType(daysMap);
-		boolean minutesBetweenEachShift = isValidShift(daysMap);
-		return daysMap;
+		shift.setShiftType(findShiftType(daysList));
+	
+		boolean isValid=isValidShift(daysList);
+		System.out.println(isValidShift(daysList));
+//		if(!isValidShift(daysList)) {
+//			throw new ServiceException("Duration between two shifts not meeting the norms");
+//		}
+		return daysList;
 	}
 
-	public String findShiftType(Map<Integer, DayInfoVO> daysMap) {
-		String shiftType;
-		String shiftStartEnd = "";
-		boolean allEqual = true;
+//	public String findShiftType(Map<Integer, DayInfoVO> daysMap) {	
+//		Instant prevShiftStart=null;
+//		Instant prevShiftEnd=null;
+//
+//		for (DayInfoVO dayInfoVO : daysMap.values()) {
+//			if( prevShiftStart != null && prevShiftEnd != null && (!prevShiftStart.equals(dayInfoVO.getStartTime()) || !prevShiftEnd.equals(dayInfoVO.getEndTime())))  {
+//			return "Variable";
+//			}
+//			prevShiftStart=dayInfoVO.getStartTime();
+//			prevShiftEnd=dayInfoVO.getEndTime();
+//		}
+//		return "Regular";
+//	}
+	public String findShiftType(List<DayInfoVO> daysList) {
+		Instant prevShiftStart = null;
+		Instant prevShiftEnd = null;
 
-		for (DayInfoVO shiftTime : daysMap.values()) {
-			String shiftStartEndTime = shiftTime.getStartTime() + "to" + shiftTime.getEndTime();
-
-			if (shiftStartEnd.equals("")) {
-				shiftStartEnd = shiftStartEndTime;
-			} else if (!shiftStartEnd.equals(shiftStartEndTime)) {
-				allEqual = false;
-				break;
+		for (DayInfoVO dayInfoVO : daysList) {
+			if (prevShiftStart != null && prevShiftEnd != null && (!prevShiftStart.equals(dayInfoVO.getStartTime())
+					|| !prevShiftEnd.equals(dayInfoVO.getEndTime()))) {
+				return "Variable";
 			}
+			prevShiftStart = dayInfoVO.getStartTime();
+			prevShiftEnd = dayInfoVO.getEndTime();
 		}
-		if (allEqual) {
-			shiftType = "Regular";
-		} else {
-			shiftType = "Variable";
-		}
-		return shiftType;
+		return "Regular";
 	}
 
-	public boolean isValidShift(Map<Integer, DayInfoVO> daysMap) {
+	public boolean isValidShift(List<DayInfoVO> daysList){
 		boolean isValid = true;
 		Duration hoursBetweenNextShift;
 
-		for (int i = 1; i <= 6; i++) {
-			DayInfoVO currentDay = daysMap.get(i);
-			DayInfoVO nextDay = daysMap.get(i + 1);
+		addNullForMissingNumbers(daysList);
+
+		for (int i = 0; i < daysList.size() - 1; i++) {
+
+			DayInfoVO currentDay = daysList.get(i);
+			DayInfoVO nextDay = daysList.get(i + 1);
 
 			Instant curentDayEndTime = currentDay != null ? currentDay.getEndTime() : null;
 			Instant nextDayStartTime = nextDay != null ? nextDay.getStartTime() : null;
@@ -69,16 +93,60 @@ public class ShiftService {
 					hoursBetweenNextShift = hoursBetweenNextShift.plus(Duration.ofHours(24));
 				}
 				if (hoursBetweenNextShift.toMinutes() < 8 * 60) {
-					isValid = false;
+					isValid=false;
 					break;
-				} else {
-					isValid = true;
 				}
 			}
 
 		}
 		return isValid;
 	}
+
+	private void addNullForMissingNumbers(List<DayInfoVO> daysList) {
+		List<Integer> days = new ArrayList<>();
+		for (DayInfoVO dayInfoVO : daysList) {
+			if (dayInfoVO != null) {
+			days.add(dayInfoVO.getDay());
+			}
+		}
+		for (int i = 0; i < 7; i++) {
+			if (!days.contains(i + 1)) {
+				daysList.add(i, null);
+			}
+		}
+
+	}
+
+//	public boolean isValidShift(Map<Integer, DayInfoVO> daysMap) {
+//		boolean isValid = true;
+//		Duration hoursBetweenNextShift;
+//
+//		for (int i = 1; i <= 6; i++) {
+//			DayInfoVO currentDay = daysMap.get(i);
+//			DayInfoVO nextDay = daysMap.get(i + 1);
+//
+//			Instant curentDayEndTime = currentDay != null ? currentDay.getEndTime() : null;
+//			Instant nextDayStartTime = nextDay != null ? nextDay.getStartTime() : null;
+//
+//			if (curentDayEndTime == null && nextDayStartTime == null || nextDayStartTime == null
+//					|| curentDayEndTime == null) {
+//				isValid = true;
+//			} else {
+//				hoursBetweenNextShift = Duration.between(curentDayEndTime, nextDayStartTime);
+//				if (hoursBetweenNextShift.isNegative()) {
+//					hoursBetweenNextShift = hoursBetweenNextShift.plus(Duration.ofHours(24));
+//				}
+//				if (hoursBetweenNextShift.toMinutes() < 8 * 60) {
+//					isValid = false;
+//					break;
+//				} else {
+//					isValid = true;
+//				}
+//			}
+//
+//		}
+//		return isValid;
+//	}
 
 	public DayInfoVO processDayPattern(String pattern) throws ServiceException {
 		DayInfoVO dayInfoVO = parseDayInfo(pattern);

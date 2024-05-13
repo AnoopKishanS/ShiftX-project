@@ -10,6 +10,15 @@ public class DayInfoVO {
 	private Instant startTime;
 	private Instant endTime;
 	private int shiftTimeInMinutes;
+	private int day;
+
+	public int getDay() {
+		return day;
+	}
+
+	public void setDay(int day) {
+		this.day = day;
+	}
 
 	public Instant getStartTime() {
 		return startTime;
