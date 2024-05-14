@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,10 +36,10 @@ public class ShiftService {
 		shift.setShiftType(findShiftType(daysList));
 	
 		boolean isValid=isValidShift(daysList);
-		System.out.println(isValidShift(daysList));
-//		if(!isValidShift(daysList)) {
-//			throw new ServiceException("Duration between two shifts not meeting the norms");
-//		}
+		
+		if(!isValidShift(daysList)) {
+			throw new ServiceException("Duration between two shifts not meeting the norms");
+		}
 		return daysList;
 	}
 
@@ -74,13 +75,24 @@ public class ShiftService {
 		boolean isValid = true;
 		Duration hoursBetweenNextShift;
 
-		addNullForMissingNumbers(daysList);
+		List<DayInfoVO> newDaysList = new ArrayList<>();
+		newDaysList.addAll(daysList);
+		
+		addNullForMissingNumbers(newDaysList);
 
-		for (int i = 0; i < daysList.size() - 1; i++) {
+		for (int i = 0; i < newDaysList.size() - 1; i++) {
+			DayInfoVO currentDay;
+			DayInfoVO nextDay;	
 
-			DayInfoVO currentDay = daysList.get(i);
-			DayInfoVO nextDay = daysList.get(i + 1);
-
+			if((i+1)!=newDaysList.size()-1) {
+				currentDay = newDaysList.get(i);
+				nextDay = newDaysList.get(i + 1);
+			}
+			else {
+				currentDay = newDaysList.get(i+1);
+				nextDay = newDaysList.get(0);
+			}
+			
 			Instant curentDayEndTime = currentDay != null ? currentDay.getEndTime() : null;
 			Instant nextDayStartTime = nextDay != null ? nextDay.getStartTime() : null;
 
@@ -99,22 +111,22 @@ public class ShiftService {
 			}
 
 		}
+		
 		return isValid;
 	}
 
-	private void addNullForMissingNumbers(List<DayInfoVO> daysList) {
+	private void addNullForMissingNumbers(List<DayInfoVO> newDaysList) {
 		List<Integer> days = new ArrayList<>();
-		for (DayInfoVO dayInfoVO : daysList) {
+		for (DayInfoVO dayInfoVO : newDaysList) {
 			if (dayInfoVO != null) {
 			days.add(dayInfoVO.getDay());
 			}
 		}
 		for (int i = 0; i < 7; i++) {
 			if (!days.contains(i + 1)) {
-				daysList.add(i, null);
+				newDaysList.add(i, null);
 			}
 		}
-
 	}
 
 //	public boolean isValidShift(Map<Integer, DayInfoVO> daysMap) {
